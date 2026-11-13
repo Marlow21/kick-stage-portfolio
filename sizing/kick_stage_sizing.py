@@ -2,9 +2,11 @@
 P5a - Kick stage preliminary sizing (mass budget + delta-v trade)
 
 Solid-motor kick stage on a rideshare port that carries a 3U CubeSat
-deployer and releases the CubeSat after ONE burn at perigee of the
-injection orbit. 3-axis attitude control through the burn with a small
-cold-gas RCS (decided 12 Nov 2026).
+deployer. Mission (decided 13 Nov 2026): ONE burn at a node, normal to the
+orbital plane, changes the inclination of the 500 km circular injection
+orbit; then the CubeSat is released. The orbit stays low, so the spent
+stage re-enters within the FCC 5-year rule (see orbit_lifetime.py).
+3-axis attitude control through the burn with a small cold-gas RCS.
 
 Every number in ASSUMPTIONS is a placeholder to be refined:
   - Isp, thrust    -> P2 (NASA CEA / RocketCEA, grain design)
@@ -33,12 +35,12 @@ R_EARTH = 6378.137e3       # m, equatorial radius
 class Assumptions:
     # Mission
     h_injection_km: float = 500.0   # circular rideshare injection orbit [TBR]
-    dv_baseline: float = 500.0      # m/s, single burn [TBR]
+    dv_baseline: float = 500.0      # m/s, single plane-change burn (~3.8 deg) [TBR]
     dv_margin: float = 0.05         # 5 % delta-v margin [proposed]
 
     # Propulsion (solid motor)
     isp_vac: float = 280.0          # s, AP/HTPB/Al small motor [assumed -> P2]
-    motor_prop_fraction: float = 0.80  # m_prop / m_motor_loaded [assumed -> P1/P2]
+    motor_prop_fraction: float = 0.72  # STAR 6A heritage (~3.3 kg prop); P1 target >= 0.80 with CFRP
     thrust_nominal: float = 100.0   # N, low thrust to keep RCS small [decided, refine in P2]
 
     # Burn attitude control (cold-gas RCS)
@@ -137,18 +139,6 @@ def size_stage(dv: float, a: Assumptions) -> dict:
     }
 
 
-def apogee_after_perigee_burn(h_circ_km: float, dv: float) -> float:
-    """Apogee altitude [km] after a tangential burn from a circular orbit."""
-    r_p = R_EARTH + h_circ_km * 1e3
-    v_p = math.sqrt(MU_EARTH / r_p) + dv
-    inv_a = 2.0 / r_p - v_p**2 / MU_EARTH
-    if inv_a <= 0:
-        return float("inf")  # escape
-    a_sma = 1.0 / inv_a
-    r_a = 2.0 * a_sma - r_p
-    return (r_a - R_EARTH) / 1e3
-
-
 def plane_change_deg(h_circ_km: float, dv: float) -> float:
     """Pure inclination change [deg] the same dv buys at circular speed."""
     v = math.sqrt(MU_EARTH / (R_EARTH + h_circ_km * 1e3))
@@ -196,17 +186,20 @@ def main() -> None:
     print(f"  momentum to absorb      {base['momentum_to_absorb_Nms']:6.1f} N*m*s")
     print(f"  RCS thrust per couple   {base['rcs_thrust_needed_N']:6.2f} N (arm {a.rcs_arm_m} m, no margin)\n")
 
+    print(f"Mission: inclination change at {a.h_injection_km:.0f} km circular")
+    print(f"  baseline {a.dv_baseline:.0f} m/s -> {plane_change_deg(a.h_injection_km, a.dv_baseline):.2f} deg")
+    print(f"  design   {dv_design:.0f} m/s -> {plane_change_deg(a.h_injection_km, dv_design):.2f} deg\n")
+
     rows = []
-    print(f"{'dv':>6} {'m_p':>7} {'m_motor':>8} {'m_gas':>6} {'m_gross':>8} {'I_tot':>7} {'t_burn':>7} {'apogee':>8} {'di':>6}")
-    print(f"{'m/s':>6} {'kg':>7} {'kg':>8} {'kg':>6} {'kg':>8} {'kN*s':>7} {'s':>7} {'km':>8} {'deg':>6}")
+    print(f"{'dv':>6} {'di':>6} {'m_p':>7} {'m_motor':>8} {'m_gas':>6} {'m_gross':>8} {'I_tot':>7} {'t_burn':>7}")
+    print(f"{'m/s':>6} {'deg':>6} {'kg':>7} {'kg':>8} {'kg':>6} {'kg':>8} {'kN*s':>7} {'s':>7}")
     for dv in range(300, 801, 100):
         r = size_stage(dv, a)
-        r["apogee_alt_km"] = apogee_after_perigee_burn(a.h_injection_km, dv)
-        r["equiv_plane_change_deg"] = plane_change_deg(a.h_injection_km, dv)
+        r["plane_change_deg"] = plane_change_deg(a.h_injection_km, dv)
         rows.append(r)
-        print(f"{dv:6.0f} {r['m_prop_kg']:7.2f} {r['m_motor_loaded_kg']:8.2f} {r['m_rcs_gas_kg']:6.2f} "
-              f"{r['m_gross_kg']:8.2f} {r['total_impulse_kN_s']:7.2f} {r['burn_time_s']:7.0f} "
-              f"{r['apogee_alt_km']:8.0f} {r['equiv_plane_change_deg']:6.2f}")
+        print(f"{dv:6.0f} {r['plane_change_deg']:6.2f} {r['m_prop_kg']:7.2f} {r['m_motor_loaded_kg']:8.2f} "
+              f"{r['m_rcs_gas_kg']:6.2f} {r['m_gross_kg']:8.2f} {r['total_impulse_kN_s']:7.2f} "
+              f"{r['burn_time_s']:7.0f}")
 
     csv_path = out_dir / "dv_trade.csv"
     with csv_path.open("w", newline="") as f:
