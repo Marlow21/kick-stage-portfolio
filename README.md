@@ -25,4 +25,6 @@ marked with the project that will replace it. The delta-v trade is written to
 `sizing/out/dv_trade.csv`.
 
 Baseline (TBR): 500 km circular injection, 500 m/s single burn
-(525 m/s with margin), Isp 280 s → 2.6 kg propellant, 14.9 kg gross.
+(525 m/s with margin), Isp 280 s, 100 N nominal thrust, 3-axis control
+through the burn with a small nitrogen cold-gas RCS
+→ 2.9 kg propellant, 79 s burn, 16.6 kg gross.
