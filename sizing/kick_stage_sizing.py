@@ -150,7 +150,11 @@ def plane_change_deg(h_circ_km: float, dv: float) -> float:
 # ----------------------------------------------------------------------------
 def main() -> None:
     a = Assumptions()
-    out_dir = Path(__file__).parent / "out"
+    # __file__ is missing in some online editors; fall back to the working dir
+    try:
+        out_dir = Path(__file__).parent / "out"
+    except NameError:
+        out_dir = Path("out")
     out_dir.mkdir(exist_ok=True)
 
     dv_design = a.dv_baseline * (1.0 + a.dv_margin)
